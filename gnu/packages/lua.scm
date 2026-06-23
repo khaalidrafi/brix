@@ -1945,6 +1945,13 @@ multiple local rocks trees.")
 (define-public lua5.2-luarocks
   (luarocks-5.2-rewriter luarocks))
 
+(define luarocks-5.4-rewriter
+  (make-lua-rewriter lua-5.4 "luarocks" "lua5.4-luarocks"))
+
+;; Needed for installing Prosody modules
+(define-public lua5.4-luarocks
+  (luarocks-5.4-rewriter luarocks))
+
 (define-public dkjson
   (package
     (name "dkjson")

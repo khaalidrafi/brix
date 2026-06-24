@@ -209,7 +209,7 @@
       (source (origin
                 (method git-fetch)
                 (uri (git-reference
-                       (url "https://git.guix.gnu.org/guix.git")
+                       (url "https://gitlab.com/brix-os/brix.git")
                        (commit commit)))
                 (sha256
                  (base32

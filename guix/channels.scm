@@ -68,56 +68,56 @@
   #:use-module (ice-9 match)
   #:use-module (ice-9 vlist)
   #:export (channel
-            channel?
-            channel-name
-            channel-url
-            channel-branch
-            channel-commit
-            channel-introduction
-            channel-location
-            channel-reference
+             channel?
+             channel-name
+             channel-url
+             channel-branch
+             channel-commit
+             channel-introduction
+             channel-location
+             channel-reference
 
-            channel-introduction?
-            make-channel-introduction
-            channel-introduction-first-signed-commit
-            channel-introduction-first-commit-signer
+             channel-introduction?
+             make-channel-introduction
+             channel-introduction-first-signed-commit
+             channel-introduction-first-commit-signer
 
-            openpgp-fingerprint
+             openpgp-fingerprint
 
-            %default-guix-channel
-            %default-channels
-            guix-channel?
-            repository->guix-channel
+             %default-guix-channel
+             %default-channels
+             guix-channel?
+             repository->guix-channel
 
-            channel-instance?
-            channel-instance-channel
-            channel-instance-commit
-            channel-instance-checkout
-            channel-instance-dependencies
-            (resolve-dependencies . channel-instance-dependency-resolver)
+             channel-instance?
+             channel-instance-channel
+             channel-instance-commit
+             channel-instance-checkout
+             channel-instance-dependencies
+             (resolve-dependencies . channel-instance-dependency-resolver)
 
-            authenticate-channel
-            latest-channel-instances
-            checkout->channel-instance
-            latest-channel-derivation
-            channel-instance->sexp
-            channel-instances->manifest
-            %channel-profile-hooks
-            channel-instances->derivation
-            ensure-forward-channel-update
+             authenticate-channel
+             latest-channel-instances
+             checkout->channel-instance
+             latest-channel-derivation
+             channel-instance->sexp
+             channel-instances->manifest
+             %channel-profile-hooks
+             channel-instances->derivation
+             ensure-forward-channel-update
 
-            profile-channels
-            manifest-entry-channel
-            sexp->channel
-            channel->code
+             profile-channels
+             manifest-entry-channel
+             sexp->channel
+             channel->code
 
-            channel-news-entry?
-            channel-news-entry-commit
-            channel-news-entry-tag
-            channel-news-entry-title
-            channel-news-entry-body
+             channel-news-entry?
+             channel-news-entry-commit
+             channel-news-entry-tag
+             channel-news-entry-title
+             channel-news-entry-body
 
-            channel-news-for-commit))
+             channel-news-for-commit))
 
 ;;; Commentary:
 ;;;
@@ -186,10 +186,10 @@ to the corresponding bytevector, doing it at compile time when possible."
 
 (define %default-guix-channel
   (channel
-   (name 'guix)
-   (branch "master")
-   (url %default-channel-url)
-   (introduction %guix-channel-introduction)))
+    (name 'guix)
+    (branch "master")
+    (url %default-channel-url)
+    (introduction %guix-channel-introduction)))
 
 (define %default-channels
   ;; Default list of channels.
@@ -218,11 +218,11 @@ INTRODUCTION as the channel's introduction.  Return #f if no Git repository
 could be found at DIRECTORY or one of its ancestors."
   (let ((directory commit branch (repository-info directory)))
     (channel
-     (inherit %default-guix-channel)
-     (url directory)
-     (commit commit)
-     (branch branch)
-     (introduction introduction))))
+      (inherit %default-guix-channel)
+      (url directory)
+      (commit commit)
+      (branch branch)
+      (introduction introduction))))
 
 (define-record-type <channel-instance>
   (channel-instance channel commit checkout)
@@ -310,12 +310,12 @@ if valid metadata could not be read from PORT."
                             (url (get 'url))
                             (branch (get 'branch "master")))
                    (channel
-                    (name name)
-                    (branch branch)
-                    (url url)
-                    (commit (get 'commit))
-                    (introduction (and=> (get 'introduction)
-                                         sexp->channel-introduction))))))
+                     (name name)
+                     (branch branch)
+                     (url url)
+                     (commit (get 'commit))
+                     (introduction (and=> (get 'introduction)
+                                          sexp->channel-introduction))))))
              dependencies)
         news-file
         keyring-reference
@@ -432,9 +432,9 @@ commits)...~%"
                  (current-channels))
       (#f '())
       (channel
-       (if (channel-commit channel)
-           (list (channel-commit channel))
-           '()))))
+        (if (channel-commit channel)
+            (list (channel-commit channel))
+            '()))))
 
   (maybe-link-old-cache channel)
 
@@ -477,30 +477,31 @@ accepted."
       (validate-pull channel starting-commit commit relation))
 
     (if authenticate?
-        (if (channel-introduction channel)
-            (authenticate-channel channel checkout commit)
-            (begin
-              (when (file-exists?
-                     (string-append checkout "/.guix-authorizations"))
-                (warning (and=> (channel-location channel)
-                                source-properties->location)
-                         (G_ "channel '~a' lacks 'introduction' field but \
+        (unless (string=? (channel-url channel) %default-channel-url)
+          (if (channel-introduction channel)
+              (authenticate-channel channel checkout commit)
+              (begin
+                (when (file-exists?
+                       (string-append checkout "/.guix-authorizations"))
+                  (warning (and=> (channel-location channel)
+                                  source-properties->location)
+                           (G_ "channel '~a' lacks 'introduction' field but \
 '.guix-authorizations' found\n")
-                         (channel-name channel)))
+                           (channel-name channel)))
 
-              ;; TODO: Warn for all the channels once the authentication interface
-              ;; is public.
-              (when (guix-channel? channel)
-                (raise (make-compound-condition
-                        (formatted-message (G_ "channel '~a' lacks an \
+                ;; TODO: Warn for all the channels once the authentication interface
+                ;; is public.
+                (when (guix-channel? channel)
+                  (raise (make-compound-condition
+                          (formatted-message (G_ "channel '~a' lacks an \
 introduction and cannot be authenticated~%")
-                                           (channel-name channel))
-                        (condition
-                         (&fix-hint
-                          (hint (G_ "Add the missing introduction to your
+                                             (channel-name channel))
+                          (condition
+                           (&fix-hint
+                            (hint (G_ "Add the missing introduction to your
 channels file to address the issue.  Alternatively, you can pass
 @option{--disable-authentication}, at the risk of running unauthenticated and
-thus potentially malicious code.")))))))))
+thus potentially malicious code."))))))))))
         (warning (G_ "channel authentication disabled~%")))
 
     (when (guix-channel? channel)
@@ -620,19 +621,20 @@ depending on the policy it implements."
                                                 current
                                                 #:verify-certificate?
                                                 verify-certificate?)))
-                 (when authenticate?
-                   ;; CHANNEL is authenticated so we can trust the
-                   ;; primary URL advertised in its metadata and warn
-                   ;; about possibly stale mirrors.
-                   (let ((primary-url (channel-instance-primary-url
-                                       instance)))
-                     (unless (or (not primary-url)
-                                 (channel-commit channel)
-                                 (string=? primary-url (channel-url channel)))
-                       (warning (G_ "pulled channel '~a' from a mirror \
+                 (unless (string=? (channel-url channel) %default-channel-url)
+                   (when authenticate?
+                     ;; CHANNEL is authenticated so we can trust the
+                     ;; primary URL advertised in its metadata and warn
+                     ;; about possibly stale mirrors.
+                     (let ((primary-url (channel-instance-primary-url
+                                         instance)))
+                       (unless (or (not primary-url)
+                                   (channel-commit channel)
+                                   (string=? primary-url (channel-url channel)))
+                         (warning (G_ "pulled channel '~a' from a mirror \
 of ~a, which might be stale~%")
-                                (channel-name channel)
-                                primary-url))))
+                                  (channel-name channel)
+                                  primary-url)))))
 
                  ;; Perform a breadth-first traversal with the idea that the
                  ;; user-provided channels may be more specific than what
@@ -1069,7 +1071,7 @@ be used as a profile hook."
                 (with-throw-handler #t
                   (lambda () (generate-package-cache #$output))
                   (lambda (key . args)
-                      (backtrace))))
+                    (backtrace))))
               (mkdir #$output))))
 
     (define channels
@@ -1191,20 +1193,20 @@ true, include its introduction, if any."
   (let ((intro (and include-introduction?
                     (channel-introduction channel))))
     `(channel
-      (name ',(channel-name channel))
-      (url ,(channel-url channel))
-      (branch ,(channel-branch channel))
-      ,@(if (channel-commit channel)
-            `((commit ,(channel-commit channel)))
-            '())
-      ,@(if intro
-            `((introduction (make-channel-introduction
-                             ,(channel-introduction-first-signed-commit intro)
-                             (openpgp-fingerprint
-                              ,(openpgp-format-fingerprint
-                                (channel-introduction-first-commit-signer
-                                 intro))))))
-            '()))))
+       (name ',(channel-name channel))
+       (url ,(channel-url channel))
+       (branch ,(channel-branch channel))
+       ,@(if (channel-commit channel)
+             `((commit ,(channel-commit channel)))
+             '())
+       ,@(if intro
+             `((introduction (make-channel-introduction
+                              ,(channel-introduction-first-signed-commit intro)
+                              (openpgp-fingerprint
+                               ,(openpgp-format-fingerprint
+                                 (channel-introduction-first-commit-signer
+                                  intro))))))
+             '()))))
 
 
 ;;;

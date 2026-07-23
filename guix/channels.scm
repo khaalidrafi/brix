@@ -191,9 +191,20 @@ to the corresponding bytevector, doing it at compile time when possible."
     (url %default-channel-url)
     (introduction %guix-channel-introduction)))
 
+(define %nonguix-channel
+  (channel
+    (name 'nonguix)
+    (url "https://gitlab.com/nonguix/nonguix")
+    (introduction
+     (make-channel-introduction
+      "897c1a470da759236cc11798f4e0a5f7d4d59fbc"
+      (openpgp-fingerprint
+       "2A39 3FFF 68F4 EF7A 3D29  12AF 6F51 20A0 22FB B2D5")))))
+
 (define %default-channels
   ;; Default list of channels.
-  (list %default-guix-channel))
+  (list %nonguix-channel
+        %default-guix-channel))
 
 (define (guix-channel? channel)
   "Return true if CHANNEL is the 'guix' channel."

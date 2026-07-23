@@ -714,7 +714,8 @@ definitions."
   ;; 'guix-daemon', but it is used by 'guix-service-type' and and a couple of
   ;; clients ('guix build --log-file' uses it.)
   '("https://bordeaux.guix.gnu.org"
-    "https://ci.guix.gnu.org"))
+    "https://ci.guix.gnu.org"
+    "https://substitutes.nonguix.org"))
 
 (define (current-user-name)
   "Return the name of the calling user."

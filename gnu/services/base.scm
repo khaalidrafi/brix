@@ -2081,7 +2081,7 @@ and data directories to ~a:~a...~%"
   guix-configuration make-guix-configuration
   guix-configuration?
   (guix             guix-configuration-guix       ;file-like
-                    (default guix))
+                    (default (guix-for-channels %default-channels)))
   (build-group      guix-configuration-build-group ;string
                     (default "guixbuild"))
   (build-accounts   guix-configuration-build-accounts ;integer
@@ -2091,7 +2091,17 @@ and data directories to ~a:~a...~%"
   (authorize-key?   guix-configuration-authorize-key? ;Boolean
                     (default #t))
   (authorized-keys  guix-configuration-authorized-keys ;list of gexps
-                    (default %default-authorized-guix-keys))
+                    (default (append %default-authorized-guix-keys
+                                     (list
+                                      (plain-file
+                                       "non-guix.pub"
+                                       "(public-key
+ (ecc
+  (curve Ed25519)
+  (q #C1FD53E5D4CE971933EC50C9F307AE2171A2D3B52C804642A7A35F84F3A4EA98#)
+  )
+ )"
+                                                  )))))
   (use-substitutes? guix-configuration-use-substitutes? ;Boolean
                     (default #t))
   (substitute-urls  guix-configuration-substitute-urls ;list of strings

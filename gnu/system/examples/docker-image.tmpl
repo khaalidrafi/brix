@@ -2,18 +2,20 @@
 ;; This is an operating system configuration template for a "Docker image"
 ;; setup, so it has barely any services at all.
 
-(use-modules (gnu))
+(use-modules (gnu)
+             (gnu services base)
+             (srfi srfi-1))
 
 (operating-system
-  (host-name "komputilo")
-  (timezone "Europe/Berlin")
-  (locale "en_US.utf8")
+  (host-name "brix-os")
+  (timezone "Asia/Dhaka")
+  (locale "en_GB.utf8")
 
   ;; This is where user accounts are specified.  The "root" account is
   ;; implicit, and is initially created with the empty password.
   (users (cons (user-account
-                (name "alice")
-                (comment "Bob's sister")
+                (name "brix")
+                (comment "Build your bricks!")
                 (group "users")
                 (supplementary-groups '("wheel"
                                         "audio" "video")))
@@ -38,10 +40,31 @@
                (bootloader grub-bootloader)
                (targets '("does-not-matter"))))
   ;; This will be ignored, too.
-  (file-systems (list (file-system
-                        (device "does-not-matter")
-                        (mount-point "/")
-                        (type "does-not-matter"))))
+  (file-systems (cons* (file-system
+                         (device "/dev/null")
+                         (mount-point "/")
+                         (type "dummy")
+                         (check? #f)
+                         (mount-may-fail? #t))
+                       %base-file-systems))
 
-  ;; Guix is all you need!
-  (services (list (service guix-service-type))))
+  (services
+      (modify-services
+          
+          (remove (lambda (service)
+                    (member (service-kind service)
+                            (list login-service-type
+                                   virtual-terminal-service-type
+                                   console-font-service-type
+                                   agetty-service-type
+                                   mingetty-service-type)))
+                  %base-services)
+
+        (guix-service-type config =>
+                           (guix-configuration
+                             (inherit config)
+                             (generate-substitute-key? #f)))
+
+        )
+
+      ))

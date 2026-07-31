@@ -1,0 +1,13 @@
+*.po
+*.texi
+
+bri*/
+*.org
+*.in
+tests/
+
+news.scm
+NEWS
+
+Makefile.am
+doc/

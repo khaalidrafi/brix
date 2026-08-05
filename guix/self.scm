@@ -800,9 +800,15 @@ Info manual."
                        (symlink #$command
                                 (string-append #$output "/bin/guix"))
 
+                       (symlink "guix"
+                                (string-append #$output "/bin/brix"))
+
                        (when daemon
                          (symlink daemon
-                                  (string-append #$output "/bin/guix-daemon")))
+                                  (string-append #$output "/bin/guix-daemon"))
+
+                         (symlink "guix-daemon"
+                                  (string-append #$output "/bin/brix-daemon")))
 
                        (let ((share (string-append #$output "/share"))
                              (lib   (string-append #$output "/lib"))

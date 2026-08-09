@@ -76,8 +76,6 @@ build daemon, from within the generated build program."
       (('guix 'build 'download) #f)             ;autoloaded by (guix download)
       (('guix _ ...)   #t)
       (('gnu _ ...)    #t)
-      (('nonguix _ ...)   #t)
-      (('nongnu _ ...)    #t)
       (_               #f)))
 
   (define fake-gcrypt-hash

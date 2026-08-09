@@ -179,7 +179,7 @@ NODE's modules, under their FHS directories: share/guile/site and lib/guile."
                            (('guix 'config)
                             #f)
                            ((and module
-                                 (or ('guix _ ...) ('gnu _ ...)))
+                                 (or ('guix _ ...) ('gnu _ ...) ('nonguix _ ...) ('nongnu _ ...)))
                             (not (member module except)))
                            (rest #f))))
 

@@ -64,12 +64,6 @@
   #:use-module (srfi srfi-98)
   #:export (assert-container-features
             load-manifest
-            ;; --emulate-fhs
-            setup-fhs
-            fhs-symlinks
-            link-contents
-            fhs-mappings
-            ;;
             launch-environment/container
             guix-environment
             guix-environment*
@@ -446,46 +440,31 @@ requisite store items i.e. the union closure of all the inputs."
                                   input->requisites inputs)))
     (return (delete-duplicates (concatenate reqs)))))
 
-;; File system mappings for an FHS container, where the entire directory can
-;; be mapped.  Others (bin and etc) will already have contents and need to
-;; use LINK-CONTENTS (defined in SETUP-FHS) to symlink the directory
-;; contents.
-(define fhs-mappings
-  (map (lambda (mapping)
-         (file-system-mapping
-           (source (string-append profile (car mapping)))
-           (target (cdr mapping))))
-       '(("/lib"     . "/lib")
-         ("/include" . "/usr/include")
-         ("/sbin"    . "/sbin")
-         ("/libexec" . "/usr/libexec")
-         ("/share"   . "/usr/share"))))
-
-;; Additional symlinks for an FHS container.
-(define fhs-symlinks
-  `(("/lib" . "/usr/lib")
-    ,(if (target-64bit?)
-         '("/lib" . "/lib64")
-         '("/lib" . "/lib32"))
-    ("/bin" . "/usr/bin")
-    ("/sbin" . "/usr/sbin")))
-
-;; A procedure to symlink the contents (at the top level) of a directory,
-;; excluding the directory itself and parent, along with any others provided
-;; in EXCLUDE.
-(define* (link-contents dir #:key (exclude '()))
-  (for-each (lambda (file)
-              (symlink (string-append profile dir "/" file)
-                       (string-append dir "/" file)))
-            (scandir (string-append profile dir)
-                     (negate (cut member <>
-                                  (append exclude '("." ".." )))))))
-
 (define (setup-fhs profile)
   "Setup the FHS container by creating and linking expected directories from
 PROFILE (other bind mounts are done in LAUNCH-ENVIRONMENT/CONTAINER),
 providing a symlink for CC if GCC is in the container PROFILE, and writing
 /etc/ld.so.conf."
+  ;; Additional symlinks for an FHS container.
+  (define fhs-symlinks
+    `(("/lib" . "/usr/lib")
+      ,(if (target-64bit?)
+           '("/lib" . "/lib64")
+           '("/lib" . "/lib32"))
+      ("/bin" . "/usr/bin")
+      ("/sbin" . "/usr/sbin")))
+
+  ;; A procedure to symlink the contents (at the top level) of a directory,
+  ;; excluding the directory itself and parent, along with any others provided
+  ;; in EXCLUDE.
+  (define* (link-contents dir #:key (exclude '()))
+    (for-each (lambda (file)
+                (symlink (string-append profile dir "/" file)
+                         (string-append dir "/" file)))
+              (scandir (string-append profile dir)
+                       (negate (cut member <>
+                                    (append exclude '("." ".." )))))))
+
   ;; The FHS container sets up the expected filesystem through MAPPINGS with
   ;; FHS-MAPPINGS (in LAUNCH-ENVIRONMENT/CONTAINER), the symlinks through
   ;; FHS-SYMLINKS, and linking the contents of PROFILE/bin and PROFILE/etc
@@ -822,6 +801,21 @@ environment."
   (define (optional-mapping->fs mapping)
     (and (file-exists? (file-system-mapping-source mapping))
          (file-system-mapping->bind-mount mapping)))
+
+  ;; File system mappings for an FHS container, where the entire directory can
+  ;; be mapped.  Others (bin and etc) will already have contents and need to
+  ;; use LINK-CONTENTS (defined in SETUP-FHS) to symlink the directory
+  ;; contents.
+  (define fhs-mappings
+    (map (lambda (mapping)
+           (file-system-mapping
+            (source (string-append profile (car mapping)))
+            (target (cdr mapping))))
+         '(("/lib"     . "/lib")
+           ("/include" . "/usr/include")
+           ("/sbin"    . "/sbin")
+           ("/libexec" . "/usr/libexec")
+           ("/share"   . "/usr/share"))))
 
   (define (nesting-mappings)
     ;; Files shared with the host when enabling nesting.

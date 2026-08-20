@@ -1,0 +1,144 @@
+name: Test upstream Guix
+
+on:
+  push:
+    branches: [ci-testing]
+  #   tags:
+  #     - 'v*.*.*'
+  workflow_dispatch:
+
+jobs:
+  upstream-guix:
+    name: Test Upstream Guix
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install Guix (upstream)
+        uses: PromyLOPh/guix-install-action@v1
+        with:
+          pullAfterInstall: false
+
+      - name: Configure Nonguix channel
+        run: |
+          mkdir -p ~/.config/guix
+          cat > ~/.config/guix/channels.scm <<'EOF'
+            (list
+            
+             (channel
+               (name 'nonguix)
+               (url "https://gitlab.com/nonguix/nonguix")
+               (introduction
+                (make-channel-introduction
+                 "897c1a470da759236cc11798f4e0a5f7d4d59fbc"
+                 (openpgp-fingerprint
+                  "2A39 3FFF 68F4 EF7A 3D29  12AF 6F51 20A0 22FB B2D5"))))
+           
+           (channel
+            (name 'guix)
+            (url "https://github.com/brix-os/brix.git")
+            (branch "ci-debug"))
+
+             )
+          EOF
+
+      - name: Guix pull (upstream)
+        env:
+          LC_ALL: C
+        run: |
+          guix describe
+          guix pull --allow-downgrades --disable-authentication -M 6 -v 3 -K
+          sudo systemctl restart guix-daemon
+
+      - name: Test Pulled Upstream Guix
+        run: |
+          GUIX_PROFILE="$HOME/.config/guix/current"
+          . "$GUIX_PROFILE/etc/profile"
+          which guix
+          guix describe
+
+      - name: Export Current Upstream Profile
+        run: |
+          if [ -d "$HOME/.config/guix/current" ]; then
+            GUIX_PROFILE="$HOME/.config/guix/current"
+            . "$GUIX_PROFILE/etc/profile"
+          fi
+          which guix
+          guix describe
+
+          STORE_PATH=$(readlink -f "$GUIX_PROFILE")
+          echo "STORE_PATH=$STORE_PATH" >> "$GITHUB_ENV"
+          guix archive --export -r "$STORE_PATH" > upstream-testing-current-profile.nar
+          cp /etc/guix/signing-key.pub upstream-testing-current-profile.pub
+
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      # - name: Get short commit SHA
+      #   id: vars
+      #   run: |
+      #     SHORT_SHA=$(git rev-parse --short "${{ github.sha }}")
+      #     echo "SHORT_SHA=$SHORT_SHA" >> "$GITHUB_ENV"
+
+      # - name: Create GitHub Release (upstream profile)
+      #   uses: softprops/action-gh-release@v2
+      #   with:
+      #     tag_name: testing
+      #     body: |
+      #       - **Variant:** Upstream Guix (for comparison with Brix)
+      #       - **Commit:** `${{ github.sha }}`
+      #       - **Store path:** `${{ env.STORE_PATH }}`
+
+      #       Import this exact upstream Guix revision without running `guix pull`:
+
+      #       sudo guix archive --authorize < upstream-testing-current-profile.pub
+      #       sudo guix archive --import < upstream-testing-current-profile.nar
+      #       ln -s ${{ env.STORE_PATH }} ~/.config/guix/current
+            
+      #     generate_release_notes: true
+      #     files: |
+      #       upstream-testing-current-profile.nar
+      #       upstream-testing-current-profile.pub
+      #   env:
+      #     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # - name: Pack pulled Guix binary (upstream)
+      #   run: |
+      #     GUIX_PROFILE="$HOME/.config/guix/current"
+      #     . "$GUIX_PROFILE/etc/profile"
+      #     sudo systemctl restart guix-daemon
+      #     which guix
+      #     guix describe
+      #     guix pack -s x86_64-linux --localstatedir \
+      #       --profile-name=current-guix --root=guix-binary \
+      #       --expression='(use-modules (gnu packages package-management)) (current-guix)'
+      #     cp -L guix-binary guix-binary-testing.x86_64-linux.tar.xz
+
+      # - uses: actions/upload-artifact@v7
+      #   with:
+      #     name: upstream-guix-binary
+      #     path: guix-binary-testing.x86_64-linux.tar.xz
+      #     archive: false
+
+      - name: generate docker image
+        run: |
+         GUIX_PROFILE="$HOME/.config/guix/current"
+         . "$GUIX_PROFILE/etc/profile"
+         which guix
+         guix describe
+         echo "--------------Starting Docker Build-----------------------"
+         guix system image --image-type=docker --network --root=guix-docker .github/workflows/docker-ci.scm -M 6 -v 2
+         cp -L guix-docker guix-docker.tar.gz
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: upstream-guix-docker
+          path: guix-docker.tar.gz
+          archive: false
+
+      - name: Debug SSH on failure
+        if: failure()
+        uses: mxschmitt/action-tmate@v3
+        timeout-minutes: 30
+        with:
+          limit-access-to-actor: true

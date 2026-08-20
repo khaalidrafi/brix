@@ -1,0 +1,493 @@
+name: Brix CI — Pull then Pack
+
+on:
+  push:
+    branches: [ci-testing]
+  #   tags:
+  #     - 'v*.*.*'
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Pull Brix then Release
+    runs-on: ubuntu-latest
+    # container:
+    #   image: ghcr.io/brix-os/brix-ci:testing
+    permissions:
+      contents: write
+      packages: write
+    steps:
+      
+     # - name: Start Builder
+      #   run: |
+      #     env LANG=C.UTF-8 guix-daemon --build-users-group=guixbuild &
+      #     sleep 3
+
+      #     ls /var/guix/daemon-socket/
+      
+      # - name: Mark workspace as safe for git
+      #   run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
+      # - name: Install Brix
+      #   uses: brix-os/brix-action@v1
+      #   with:
+      #     pullAfterInstall: false
+
+      - name: Install Guix (upstream)
+        uses: PromyLOPh/guix-install-action@v1
+        with:
+          pullAfterInstall: false
+          
+      - name: Test Guix
+        run: |
+          which guix
+          guix describe
+          # which brix
+          # ls -l $(which brix)
+          # brix describe
+
+      - name: Configure Guix channel
+        run: |
+          mkdir -p ~/.config/guix
+          cp .github/workflows/channels.scm ~/.config/guix/
+          
+          # cat > ~/.config/guix/channels.scm <<'EOF'
+          # (list
+          
+          #  (channel
+          #    (name 'nonguix)
+          #    (url "https://gitlab.com/nonguix/nonguix")
+          #    (introduction
+          #     (make-channel-introduction
+          #      "897c1a470da759236cc11798f4e0a5f7d4d59fbc"
+          #      (openpgp-fingerprint
+          #       "2A39 3FFF 68F4 EF7A 3D29  12AF 6F51 20A0 22FB B2D5"))))
+           
+          #  (channel
+          #   (name 'guix)
+          #   (url "https://github.com/brix-os/brix.git")
+          #   (branch "ci-debug"))
+            
+          #   )
+          # EOF
+
+      # - name: Check if pull is needed
+      #   id: check-pull
+      #   run: |
+      #     set -euo pipefail
+          
+      #     DESCRIBE_OUTPUT=$(guix describe 2>/dev/null || true)
+      #     if [ -z "$DESCRIBE_OUTPUT" ]; then
+      #       echo "pull_needed=true" >> $GITHUB_OUTPUT
+      #       echo "guix describe failed or returned empty. Assuming pull required."
+      #       exit 0
+      #     fi
+          
+      #     INSTALLED_COMMIT=$(echo "$DESCRIBE_OUTPUT" | grep -A4 "^  guix " | grep "commit:" | awk '{print $2}')
+      #     HEAD_COMMIT=$(git rev-parse HEAD)
+      #     echo "installed_commit=$INSTALLED_COMMIT" >> $GITHUB_OUTPUT
+      #     echo "head_commit=$HEAD_COMMIT" >> $GITHUB_OUTPUT
+          
+      #     if [ -z "$INSTALLED_COMMIT" ]; then
+      #       echo "pull_needed=true" >> $GITHUB_OUTPUT
+      #       echo "Could not extract installed commit from guix describe. Assuming pull required."
+      #       exit 0
+      #     fi
+          
+      #     if [ "$INSTALLED_COMMIT" = "$HEAD_COMMIT" ]; then
+      #       echo "pull_needed=false" >> $GITHUB_OUTPUT
+      #       echo "Installed commit matches HEAD. Nothing to do."
+      #       exit 0
+      #     fi
+          
+      #     # Guard: if installed commit isn't in this repo, we can't diff.
+      #     # This happens when the installed binary/substitute references a
+      #     # commit that was force-pushed away or built from a different channel.
+      #     if ! git rev-parse --quiet --verify "$INSTALLED_COMMIT^{commit}" >/dev/null 2>&1; then
+      #       echo "pull_needed=true" >> $GITHUB_OUTPUT
+      #       echo "Installed commit $INSTALLED_COMMIT not found in repo history. Pull and rebuild required."
+      #       exit 0
+      #     fi
+          
+      #     CHANGED_FILES=$(git diff --name-only "$INSTALLED_COMMIT" HEAD)
+      #     echo "Changed files:"
+      #     echo "$CHANGED_FILES"
+          
+      #     NON_CI=$(echo "$CHANGED_FILES" | grep -v '^\.github/workflows/' | grep -v '^\.gitlab-ci' | grep -v '^README' | grep -v '^ROADMAP' | grep -v '^TODO' | grep -v '^\.gitignore' | grep -v '^\.github/' || true)
+          
+      #     if [ -z "$NON_CI" ]; then
+      #       echo "pull_needed=false" >> $GITHUB_OUTPUT
+      #       echo "Only CI/docs files changed. Skipping pull and rebuild."
+      #     else
+      #       echo "pull_needed=true" >> $GITHUB_OUTPUT
+      #       echo "Source files changed. Pull and rebuild required."
+      #     fi
+
+      - name: Guix pull
+        # if: steps.check-pull.outputs.pull_needed == 'true'
+        env:
+          LC_ALL: C
+        run: |
+          # ls /var/guix/daemon-socket/
+          guix describe
+          guix pull --allow-downgrades --disable-authentication -M 6 -v 3 -K
+          sudo systemctl restart guix-daemon
+
+      - name: Test Pulled Brix
+        # if: steps.check-pull.outputs.pull_needed == 'true'
+        run: |
+          GUIX_PROFILE="$HOME/.config/guix/current"
+          . "$GUIX_PROFILE/etc/profile"
+          which guix
+          guix describe
+          which brix
+          ls -l $(which brix)
+          brix describe
+
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Generate Docker Image
+        run: |
+          # if [ -d "$home/.config/guix/current" ]; then
+          GUIX_PROFILE="$HOME/.config/guix/current"
+          # else
+          #   guix_profile="/var/guix/profiles/per-user/root/current-guix"
+          #   echo "warning: using guix from $guix_profile"
+          # fi
+          . "$GUIX_PROFILE/etc/profile"
+          which brix
+          ls -l $(which brix)
+          brix describe
+          which guix
+          guix describe
+          echo "--------------Starting Docker Build-----------------------"
+          guix system image --image-type=docker --network --root=$home/brix-docker .github/workflows/docker-ci.scm -M 6 -v 2
+          cp -l $home/brix-docker brix-docker-testing.tar.gz
+
+      - name: Export Current Guix Profile
+        # if: steps.check-pull.outputs.pull_needed == 'true'
+        run: |
+          # if [ -d "$HOME/.config/guix/current" ]; then
+          GUIX_PROFILE="$HOME/.config/guix/current"
+          . "$GUIX_PROFILE/etc/profile"
+          # else
+          #   GUIX_PROFILE="/var/guix/profiles/per-user/root/current-guix"
+          # fi
+          which guix
+          guix describe
+          which brix
+          ls -l $(which brix)
+          brix describe
+
+          STORE_PATH=$(readlink -f "$GUIX_PROFILE")
+          echo "store_path=$STORE_PATH" >> $GITHUB_ENV
+          guix archive --export -r "$STORE_PATH"  > brix-testing-current-profile.nar
+          cp /etc/guix/signing-key.pub brix-testing-current-profile.pub
+
+      - name: Get short commit SHA
+        id: vars
+        run: |
+          SHORT_SHA=$(git rev-parse --short ${{ github.sha }})
+          echo "SHORT_SHA=$SHORT_SHA" >> $GITHUB_ENV
+
+      - name: Create GitHub Release with commit hash
+        # if: steps.check-pull.outputs.pull_needed == 'true'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: testing
+          # name: "Brix CI ${{ env.SHORT_SHA }}"
+          body: |
+            - **Commit:** `${{ github.sha }}` from ci-testing branch
+            - **Store path:** `${{ env.STORE_PATH }}`
+
+            Download `brix-testing-current-profile.nar` and `brix-testing-current-profile.pub` to import
+            this exact Brix revision on your machine without running `brix pull`:
+
+            ```bash
+            sudo brix archive --authorize < brix-testing-current-profile.pub
+            sudo brix archive --import < brix-testing-current-profile.nar
+            ln -s ${{ env.STORE_PATH }} ~/.config/guix/current
+            ```
+            
+          generate_release_notes: true
+          files: |
+            brix-testing-current-profile.nar
+            brix-testing-current-profile.pub
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          
+      - name: Pack pulled Guix binary
+        # if: steps.check-pull.outputs.pull_needed == 'true'
+        run: |
+          GUIX_PROFILE="$HOME/.config/guix/current"
+          . "$GUIX_PROFILE/etc/profile"
+          which guix
+          guix describe
+          which brix
+          ls -l $(which brix)
+          brix describe
+          brix pack -s x86_64-linux --localstatedir \
+            --profile-name=current-guix --root=brix-binary \
+            --expression='(use-modules (gnu packages package-management)) (current-guix)'
+          cp -L brix-binary brix-binary-testing.x86_64-linux.tar.xz
+
+      - name: Release binary to GitHub
+        # if: steps.check-pull.outputs.pull_needed == 'true'
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: testing
+          files: brix-binary-testing.x86_64-linux.tar.xz
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      
+      # - name: Load and push Docker image
+      #   run: |
+      #     docker load < brix-docker-testing.tar.gz
+      #     docker tag brix:latest ghcr.io/brix-os/brix:testing
+      #     docker push ghcr.io/brix-os/brix:testing
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: brix-system-ci-base
+          path: brix-docker-testing.tar.gz
+          archive: false
+
+      - name: Build Docker system image for CI
+        run: |
+          set -e
+          
+          docker load < brix-docker-testing.tar.gz
+          docker run -d --name container --privileged brix:latest
+          sleep 3
+
+          docker logs container
+
+          docker cp .github/workflows/fhs-setup.sh container:/tmp/
+
+          docker exec container /run/current-system/profile/bin/bash -l /tmp/fhs-setup.sh
+
+      - name: Show final logs
+        if: always()
+        run: docker logs container
+
+      - name: Commit and push System CI image
+        run: |
+          docker stop container
+
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+          docker commit container ghcr.io/brix-os/brix-system-ci:testing
+          docker push ghcr.io/brix-os/brix-system-ci:testing
+          
+          
+      ########## CI Image ################    
+      - name: Generate Docker base for CI
+        run: |
+          if [ -d "$HOME/.config/guix/current" ]; then
+            GUIX_PROFILE="$HOME/.config/guix/current"
+            . "$GUIX_PROFILE/etc/profile"
+          # else
+          #   GUIX_PROFILE="/var/guix/profiles/per-user/root/current-guix"
+          fi
+          guix pack \
+          -e '(@ (gnu packages base) glibc-for-fhs)' gcc-toolchain \
+          -e '(use-modules (gnu packages package-management)) (current-guix)' \
+          bash-minimal coreutils-minimal net-base nss-certs \
+          gawk grep git-minimal github-cli procps tar which shadow wget \
+          findutils diffutils make automake autoconf tar grep sed m4 gzip xz bzip2 iproute2 inetutils libcap lndir \
+          --save-provenance \
+          -S /bin=bin \
+          -S /share=share \
+          -S /lib=lib \
+          -S /usr/include=include \
+          -S /sbin=sbin \
+          -S /usr/libexec=libexec \
+          -S /usr/share=share \
+          -f docker \
+          --image-tag=brix-ci-base \
+          --max-layers=8 \
+          --root=brix-ci
+          cp -L brix-ci brix-ci-base.tar.gz
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: brix-ci-base
+          path: brix-ci-base.tar.gz
+          archive: false
+
+      - name: Build and push CI image
+        run: |
+          docker load < brix-ci-base.tar.gz
+          docker build \
+            -t ghcr.io/brix-os/brix-ci:testing \
+            -f .github/workflows/Dockerfile \
+            .github/workflows/
+          docker push ghcr.io/brix-os/brix-ci:testing
+      ########## CI Image ################    
+      
+
+      # - name: Login to Docker Hub
+      #   uses: docker/login-action@v3
+      #   with:
+      #     username: ${{ secrets.DOCKER_USERNAME }}
+      #     password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Debug SSH on failure
+        if: failure()
+        uses: mxschmitt/action-tmate@v3
+        timeout-minutes: 30
+        with:
+          limit-access-to-actor: true
+
+
+  # test:
+  #   needs: build
+  #   runs-on: ubuntu-latest
+  #   container:
+  #     image: ghcr.io/brix-os/brix:testing
+  #   steps:
+  #     - name: Test FHS and user-processes
+  #       run: |
+  #         docker pull ghcr.io/brix-os/brix:testing
+  #         docker run -d --name container --privileged ghcr.io/brix-os/brix:testing
+  #         sleep 3
+
+  #         docker logs container
+
+  #         # PROFILE=/run/current-system/profile
+  #         # BIN=$PROFILE/bin
+          
+  #         docker exec container /bin/bash -lc '
+  #         herd status
+  #         herd start user-processes
+  #         '
+
+  #         docker exec container /bin/herd start user-processes
+          
+
+  #     - name: Show final logs
+  #       if: always()
+  #       run: docker logs container
+
+  system-ci-test:
+    needs: build
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/brix-os/brix-system-ci:testing
+    steps:
+      - name: Verify Brix works
+        run: |
+          brix describe
+          which wget
+          which awk
+
+      - name: Guix pull
+        env:
+          LC_ALL: C
+        run: |
+          guix describe
+          guix pull --allow-downgrades --disable-authentication -M 6 -v 3 -K
+          echo "DESCRIBE PULL"
+          guix describe
+          sudo systemctl restart guix-daemon
+          
+      - name: Install
+        run: |
+          brix install neovim
+
+
+      - name: Export Current Guix Profile
+        run: |
+          if [ -d "$HOME/.config/guix/current" ]; then
+            GUIX_PROFILE="$HOME/.config/guix/current"
+            . "$GUIX_PROFILE/etc/profile"
+          # else
+          #   GUIX_PROFILE="/var/guix/profiles/per-user/root/current-guix"
+          fi
+          guix archive --export -r "$STORE_PATH"  > brix-testing-current-profile.nar
+
+      - name: Pack pulled Guix binary
+        run: |
+          GUIX_PROFILE="$HOME/.config/guix/current"
+          . "$GUIX_PROFILE/etc/profile"
+          brix pack -s x86_64-linux --localstatedir \
+            --profile-name=current-guix --root=brix-binary \
+            --expression='(use-modules (gnu packages package-management)) (current-guix)'
+            
+      ########## CI Image ################    
+      - name: Generate Docker base for CI
+        run: |
+          if [ -d "$HOME/.config/guix/current" ]; then
+            GUIX_PROFILE="$HOME/.config/guix/current"
+            . "$GUIX_PROFILE/etc/profile"
+          # else
+          #   GUIX_PROFILE="/var/guix/profiles/per-user/root/current-guix"
+          fi
+          guix pack \
+          -e '(@ (gnu packages base) glibc-for-fhs)' gcc-toolchain \
+          -e '(use-modules (gnu packages package-management)) (current-guix)' \
+          bash-minimal coreutils-minimal net-base nss-certs \
+          gawk grep git github-cli procps tar which shadow wget \
+          findutils diffutils make automake autoconf tar grep sed m4 gzip xz bzip2 iproute2 inetutils libcap lndir \
+          --save-provenance \
+          -S /bin=bin \
+          -S /share=share \
+          -S /lib=lib \
+          -S /usr/include=include \
+          -S /sbin=sbin \
+          -S /usr/libexec=libexec \
+          -S /usr/share=share \
+          -f docker \
+          --image-tag=brix-ci-base \
+          --max-layers=8 \
+          --root=brix-ci
+
+      - name: Generate Docker image
+        run: |
+          if [ -d "$HOME/.config/guix/current" ]; then
+            GUIX_PROFILE="$HOME/.config/guix/current"
+          else
+            GUIX_PROFILE="/var/guix/profiles/per-user/root/current-guix"
+          fi
+          . "$GUIX_PROFILE/etc/profile"
+          brix system image --image-type=docker --network --root=$HOME/brix-docker .github/workflows/docker-ci.scm -M 6 -v 2
+
+          
+  ci-test:
+    needs: build
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/brix-os/brix-ci:testing
+    steps:
+      - name: Verify Brix works
+        run: |
+          brix describe
+          which wget
+          which awk
+
+      - name: Install
+        run: |
+          env LANG=C.UTF-8 guix-daemon --build-users-group=guixbuild &
+          brix install neovim
+          
+      - name: Pull
+        run: |
+          guix describe
+          guix pull --allow-downgrades --disable-authentication -M 6 -v 3 -K
+
+      # - name: Debug SSH on failure
+      #   if: failure()
+      #   uses: mxschmitt/action-tmate@v3
+      #   timeout-minutes: 30
+      #   with:
+      #     limit-access-to-actor: true
+

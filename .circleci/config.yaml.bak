@@ -1,0 +1,305 @@
+version: 2.1
+
+jobs:
+  build:
+    docker:
+      - image: ghcr.io/brix-os/brix-ci:testing
+        auth:
+          username: ${GITHUB_ACTOR:-brix-ci}
+          password: ${GITHUB_TOKEN}
+    resource_class: medium
+    environment:
+      SSL_CERT_DIR: /etc/ssl/certs
+      GIT_SSL_CAINFO: /etc/ssl/certs/ca-certificates.crt
+      SSL_CERT_FILE: /etc/ssl/certs/ca-certificates.crt
+
+      GH_TOKEN: ${GITHUB_TOKEN}
+    steps:
+      # - run:
+      #     name: Export SSL Env
+      #     command: |
+      #       {
+      #         echo "export SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt"
+      #         echo "export SSL_CERT_DIR=/etc/ssl/certs"
+      #         echo "export GNUTLS_SYSTEM_TRUST_FILE=/etc/ssl/certs/ca-certificates.crt"
+      #         echo "export GNUTLS_SYSTEM_TRUST_STORE=/etc/ssl/certs"
+      #         echo "export CURL_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt"
+      #         echo "export REQUESTS_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt"
+      #         echo "export GH_TOKEN=${GITHUB_TOKEN}"
+      #       } >> "$BASH_ENV"
+      # - run:
+      #     name: Unshallow repository
+      #     command: |
+      #       git fetch --unshallow 2>/dev/null || true
+      #       git fetch --tags 2>/dev/null || true
+
+      # - run:
+      #     name: Setup
+      #     command: |
+      #       env LANG=C.UTF-8 guix-daemon --build-users-group=guixbuild &
+      #       sleep 2
+
+      - run:
+          name: Test Guix
+          command: |
+            # which brix
+            # ls -l "$(which brix)"
+            guix describe
+      
+      # - run:
+      #     name: Install GitHub CLI
+      #     command: |
+      #       if [ -d "$HOME/.config/guix/current" ]; then
+      #         GUIX_PROFILE="$HOME/.config/guix/current"
+      #         . "$GUIX_PROFILE/etc/profile"
+      #       fi
+            
+      #       # GUIX_DAEMON_SOCKET="${GUIX_DAEMON_SOCKET:-/var/guix/daemon-socket/socket}"
+
+      #       ls /var/guix/daemon-socket || true
+            
+      #       # if [ ! -S "$GUIX_DAEMON_SOCKET" ]; then
+      #         env LANG=C.UTF-8 guix-daemon \
+      #         --build-users-group=guixbuild \
+      #         >/tmp/guix-daemon.log 2>&1 &
+      #         sleep 2
+      #       # fi
+
+      #       ls /var/guix/daemon-socket || true
+            
+      #       guix install github-cli
+      #       gh --version
+            
+      - run:
+          name: Manual checkout
+          command: |
+            git clone https://github.com/brix-os/brix.git . --depth 1
+
+      - run:
+          name: Configure Guix channel
+          command: |
+            mkdir -p ~/.config/guix
+            cat > ~/.config/guix/channels.scm \<<'EOF'
+            (cons
+             (channel
+              (name 'guix)
+              (url "https://github.com/brix-os/brix.git")
+              (branch "ci-testing"))
+              %default-channels)
+            EOF
+
+      # Pull check disabled: container image lacks grep/gawk.
+      # Re-enable once the base image includes them or use guile scripts.
+      # - run:
+      #     name: Check if pull is needed
+      #     command: |
+      #       set -euo pipefail
+      #       DESCRIBE_OUTPUT=$(guix describe 2>/dev/null || true)
+      #       ...
+
+      - run:
+          name: Guix pull
+          no_output_timeout: 30m
+          environment:
+            LC_ALL: C
+          command: |
+            guix describe
+
+            GUIX_DAEMON_SOCKET="${GUIX_DAEMON_SOCKET:-/var/guix/daemon-socket/socket}"
+
+            if [ ! -S "$GUIX_DAEMON_SOCKET" ]; then
+              env LANG=C.UTF-8 guix-daemon \
+              --build-users-group=guixbuild \
+              >/tmp/guix-daemon.log 2>&1 &
+              sleep 2
+            fi
+
+            guix pull --allow-downgrades --disable-authentication -M 6 -v 3
+
+      - run:
+          name: Test Pulled Brix
+          command: |
+            GUIX_PROFILE="$HOME/.config/guix/current"
+            . "$GUIX_PROFILE/etc/profile"
+            which brix
+            ls -l "$(which brix)"
+            brix describe
+
+      - run:
+          name: Export Guix profile
+          command: |
+            if [ -d "$HOME/.config/guix/current" ]; then
+              GUIX_PROFILE="$HOME/.config/guix/current"
+              . "$GUIX_PROFILE/etc/profile"
+            fi
+            guix archive --export -r "$(readlink -f "$GUIX_PROFILE")" > brix-testing.nar
+            cp /etc/guix/signing-key.pub brix-testing-archive.pub
+
+      - run:
+          name: Generate Docker base for CI
+          no_output_timeout: 30m
+          command: |
+            if [ -d "$HOME/.config/guix/current" ]; then
+              GUIX_PROFILE="$HOME/.config/guix/current"
+              . "$GUIX_PROFILE/etc/profile"
+            fi
+            
+            GUIX_DAEMON_SOCKET="${GUIX_DAEMON_SOCKET:-/var/guix/daemon-socket/socket}"
+
+            if [ ! -S "$GUIX_DAEMON_SOCKET" ]; then
+              env LANG=C.UTF-8 guix-daemon \
+              --build-users-group=guixbuild \
+              >/tmp/guix-daemon.log 2>&1 &
+              sleep 2
+            fi
+            
+            guix pack \
+              -e '(@ (gnu packages base) glibc-for-fhs)' \
+              -e '(@ (gnu packages package-management) current-guix)' \
+              gawk grep git github-cli procps tar which gcc-toolchain bash-minimal \
+              coreutils-minimal net-base shadow wget nss-certs \
+              --save-provenance \
+              -S /bin=bin \
+              -S /share=share \
+              -S /lib=lib \
+              -S /usr/include=include \
+              -S /sbin=sbin \
+              -S /usr/libexec=libexec \
+              -S /usr/share=share \
+              -f docker \
+              --image-tag=brix-ci-base \
+              --max-layers=8 \
+              --root=brix-ci
+            cp -L brix-ci brix-ci-base.tar.gz
+
+      - store_artifacts:
+          path: brix-ci-base.tar.gz
+          destination: brix-ci-base.tar.gz
+
+      - setup_remote_docker:
+          docker_layer_caching: true
+
+      - run:
+          name: Login to GitHub Container Registry
+          command: |
+            echo "${GITHUB_TOKEN}" | docker login ghcr.io -u "${GITHUB_ACTOR:-brix-ci}" --password-stdin
+
+      - run:
+          name: Build and push CI image
+          command: |
+            docker load < brix-ci-base.tar.gz
+            docker build \
+              -t ghcr.io/brix-os/brix-ci:testing \
+              -f .github/workflows/Dockerfile \
+              .github/workflows/
+            docker push ghcr.io/brix-os/brix-ci:testing
+            
+      - run:
+          name: Create GitHub Release
+          command: |
+            REPO="brix-os/brix"
+            API_BASE="https://api.github.com/repos/${REPO}"
+            UPLOAD_BASE="https://uploads.github.com/repos/${REPO}"
+
+            RELEASE_JSON=$(curl -fsSL \
+              -H "Authorization: token ${GITHUB_TOKEN}" \
+              -H "Accept: application/vnd.github.v3+json" \
+              "${API_BASE}/releases/tags/testing" 2>/dev/null || true)
+
+            RELEASE_ID=$(echo "$RELEASE_JSON" | grep '"id":' | head -1 | sed -E 's/.*"id": *([0-9]+).*/\1/')
+
+            if [ -z "$RELEASE_ID" ]; then
+              RELEASE_JSON=$(curl -fsSL -X POST \
+                -H "Authorization: token ${GITHUB_TOKEN}" \
+                -H "Accept: application/vnd.github.v3+json" \
+                "${API_BASE}/releases" \
+                -d "{
+                  \"tag_name\": \"testing\",
+                  \"name\": \"Brix CI Testing\",
+                  \"body\": \"- **Commit:** \\`${CIRCLE_SHA1}\\` from ci-testing branch\\n\\nDownload \\`brix-testing.nar\\` and \\`brix-testing-signing-key.pub\\` to import this exact Brix revision on your machine without running \\`brix pull\\`:\\n\\n\\`\\`\\`bash\\nsudo brix archive --authorize < brix-testing-signing-key.pub\\nsudo brix archive --import < brix-testing.nar\\n\\`\\`\\`\",
+                  \"generate_release_notes\": true
+                }")
+              RELEASE_ID=$(echo "$RELEASE_JSON" | grep '"id":' | head -1 | sed -E 's/.*"id": *([0-9]+).*/\1/')
+            fi
+
+            for file in brix-testing.nar brix-testing-archive.pub; do
+              curl -fsSL -X POST \
+                -H "Authorization: token ${GITHUB_TOKEN}" \
+                -H "Accept: application/vnd.github.v3+json" \
+                -H "Content-Type: application/octet-stream" \
+                "${UPLOAD_BASE}/releases/${RELEASE_ID}/assets?name=$(basename "$file")" \
+                --data-binary @"$file"
+            done
+            
+            
+      # - run:
+      #     name: Create GitHub Release for Current Profile
+      #     command: |
+      #       GUIX_PROFILE="$HOME/.config/guix/current"
+      #       . "$GUIX_PROFILE/etc/profile"
+      #       REPO="brix-os/brix"
+
+      #       if ! gh release view testing --repo "${REPO}" >/dev/null 2>&1; then
+      #         gh release create testing \
+      #           --title "Brix CI Testing" \
+      #           --notes "- **Commit:** \`${CIRCLE_SHA1}\` from ci-testing branch
+
+      #       Download \`brix-testing.nar\` and \`brix-testing-signing-key.pub\` to import this exact Brix revision on your machine without running \`brix pull\`:
+
+      #       \`\`\`bash
+      #       sudo brix archive --authorize < brix-testing-signing-key.pub
+      #       sudo brix archive --import < brix-testing.nar
+      #       \`\`\`" \
+      #           --repo "${REPO}"
+      #       fi
+
+      #       for asset in brix-testing.nar brix-testing-archive.pub; do
+      #         gh release delete-asset testing "$asset" --repo "${REPO}" --yes 2>/dev/null || true
+      #       done
+
+      #       gh release upload testing brix-testing.nar brix-testing-archive.pub --repo "${REPO}"
+
+      - run:
+          name: Debug on failure
+          when: on_fail
+          command: |
+            echo "=== Environment ==="
+            env | sort
+            echo "=== Guix describe ==="
+            guix describe 2>/dev/null || true
+            echo "=== Disk usage ==="
+            df -h
+            echo "=== Workspace ==="
+            ls -la
+
+  test:
+    docker:
+      - image: ghcr.io/brix-os/brix-ci:testing
+        auth:
+          username: ${GITHUB_ACTOR:-brix-ci}
+          password: ${GITHUB_TOKEN}
+    steps:
+      - run:
+          name: Verify Brix works
+          command: |
+            brix describe
+            which wget
+            which awk
+
+workflows:
+  brix-ci:
+    jobs:
+      - build:
+          filters:
+            branches:
+              only: ci-testing
+            tags:
+              only: /^v.*\..*\..*/
+      - test:
+          requires:
+            - build
+          filters:
+            branches:
+              only: ci-testing
+            tags:
+              only: /^v.*\..*\..*/

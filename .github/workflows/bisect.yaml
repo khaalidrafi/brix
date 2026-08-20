@@ -1,0 +1,109 @@
+name: Guix Bisect
+
+on:
+  push:
+    branches: [ci-debug]
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build Guix Bisection
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install Upstream Guix
+        uses: PromyLOPh/guix-install-action@v1
+        with:
+          pullAfterInstall: false
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Mark workspace as safe for git
+        run: git config --global --add safe.directory $(pwd)
+      
+      - name: Configure Guix channel
+        run: |
+          mkdir -p ~/.config/guix
+          cp .github/workflows/channels.scm ~/.config/guix/channels.scm
+
+      - name: Test Before Guix Pull
+        run: |
+          which guix
+          guix describe
+          guix pull --url="file://$(pwd)" --commit=$(git rev-parse HEAD) --allow-downgrades --disable-authentication -M 6 -v 3 -K --dry-run
+          
+
+      - name: Guix pull
+        env:
+          LC_ALL: C
+        run: |
+          guix pull --url="file://$(pwd)" --commit=$(git rev-parse HEAD) --allow-downgrades --disable-authentication -M 6 -v 3 -K
+
+      - name: Test Pulled Guix
+        run: |
+          GUIX_PROFILE="$HOME/.config/guix/current"
+          . "$GUIX_PROFILE/etc/profile"
+          which guix
+          guix describe
+
+      # - name: Get short commit SHA
+      #   id: vars
+      #   run: |
+      #     SHORT_SHA=$(git rev-parse --short ${{ github.sha }})
+      #     echo "SHORT_SHA=$SHORT_SHA" >> $GITHUB_ENV
+
+      - name: Generate Docker image
+        run: |
+         GUIX_PROFILE="$HOME/.config/guix/current"
+         . "$GUIX_PROFILE/etc/profile"
+         echo "--------------Dry Run------------------"
+         guix system image --image-type=docker --network --root=$HOME/brix-docker .github/workflows/docker-ci.scm -M 6 -v 3 -K --dry-run
+
+         echo "---------------Building Docker------------"         
+         guix system image --image-type=docker --network --root=$HOME/brix-docker .github/workflows/docker-ci.scm -M 6 -v 3 -K
+         cp -L $HOME/brix-docker brix-docker-testing.tar.gz
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      
+      # - name: Load and push Docker image
+      #   run: |
+      #     docker load < guix-docker-testing.tar.gz
+      #     docker tag guix:latest ghcr.io/${{ github.repository_owner }}/guix:testing
+      #     docker push ghcr.io/${{ github.repository_owner }}/guix:testing
+
+      - name: Build Docker system image for CI
+        run: |
+          set -e
+          IMAGE=$(docker load -i brix-docker-testing.tar.gz 2>&1 | awk -F': ' '/Loaded image/ {print $2}')
+          docker run -d --name container --privileged "$IMAGE"
+          sleep 5
+          docker logs container
+          docker cp .github/workflows/fhs-setup.sh container:/tmp/
+          docker exec container /run/current-system/profile/bin/bash -l /tmp/fhs-setup.sh
+
+      - name: Show final logs
+        if: always()
+        run: docker logs container
+
+      - name: Commit and push System CI image
+        run: |
+          docker stop container
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+          docker commit container ghcr.io/${{ github.repository_owner }}/brix-system-ci:testing
+          docker push ghcr.io/${{ github.repository_owner }}/brix-system-ci:testing
+
+
+      - name: Debug SSH on failure
+        if: failure()
+        uses: mxschmitt/action-tmate@v3
+        timeout-minutes: 30
+        with:
+          limit-access-to-actor: true
+          

@@ -971,7 +971,7 @@ package or any valid argument to @command{setfont}, as in this example:
 @end example\n")))
 
 (define %default-motd
-  (plain-file "motd" "This is the GNU operating system, welcome!\n\n"))
+  (plain-file "motd" "Build your bricks!\n\n"))
 
 (define-record-type* <login-configuration>
   login-configuration make-login-configuration

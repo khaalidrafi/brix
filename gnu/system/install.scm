@@ -26,6 +26,7 @@
 
 (define-module (gnu system install)
   #:use-module (guix transformations)
+  #:use-module (gnu packages linux-nonfree)
   #:use-module ((guix licenses) #:prefix license:)
   #:use-module (gnu)
   #:use-module (gnu system)
@@ -793,7 +794,7 @@ The bootloader BOOTLOADER is installed to BOOTLOADER-TARGET."
     (bootloader (bootloader-configuration
                  (bootloader bootloader)
                  (targets (list bootloader-target))))
-    (kernel linux-libre)
+    (kernel linux) ;; Use standard Linux kernel instead of linux-libre
     (kernel-arguments
      (cons (string-append "console=" tty)
            (operating-system-user-kernel-arguments installation-os)))

@@ -712,7 +712,7 @@ overridden by setting the 'current-guix-package' parameter."
           #~(begin
               (use-modules (guix build utils)
                            (gnu build svg))
-              (let* ((logo (string-append #$source "/logo/Guix.svg"))
+              (let* ((logo (string-append #$source "/logo/Brix.svg"))
                      (logo-white
                       (string-append #$source
                                      "/logo/Guix-horizontal-white.svg"))

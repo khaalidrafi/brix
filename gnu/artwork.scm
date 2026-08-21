@@ -29,16 +29,15 @@
 ;;; Code:
 
 (define %artwork-repository
-  (let ((commit "08259679a0faef63e3ba169df5b937d836bd9262"))
+  (let ((commit "master"))
     (origin
       (method git-fetch)
       (uri (git-reference
-             (url "https://codeberg.org/guix/artwork.git")
+             (url "https://gitlab.com/brix-os/artwork")
              (commit commit)))
-      (file-name (string-append "guix-artwork-" (string-take commit 7)
-                                "-checkout"))
+      (file-name (string-append "guix-artwork-master-checkout"))
       (sha256
        (base32
-        "0anryix0y8w9brksiaz39r8c10vdd0fp4h96b9f3m4aw0xpv8xlf")))))
+        "0v6hy9fkq6f2v8cw2ipsd401cz7r2pxx8pmvrg1rv0247nhvcjkg")))))
 
 ;;; artwork.scm ends here

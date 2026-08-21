@@ -998,7 +998,7 @@ of PROVENANCE-SERVICE-TYPE to its services."
 (define %default-issue
   ;; Default contents for /etc/issue.
   "
-This is the GNU system.  Welcome.\n")
+This is Brix OS!  Welcome.\n")
 
 (define-deprecated (local-host-aliases host-name)
   local-host-entries

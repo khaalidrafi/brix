@@ -25,6 +25,7 @@
 ;;; along with GNU Guix.  If not, see <http://www.gnu.org/licenses/>.
 
 (define-module (gnu system install)
+  #:use-module (guix transformations)
   #:use-module ((guix licenses) #:prefix license:)
   #:use-module (gnu)
   #:use-module (gnu system)
@@ -351,14 +352,14 @@ templates under @file{/etc/configuration}.")))
                  (control "required")
                  (module "pam_env.so")))
          (motd (plain-file "motd" "
-\x1b[1;37mWelcome to the installation of GNU Guix!\x1b[0m
+\x1b[1;37mWelcome to the installation of Brix OS!\x1b[0m
 
 \x1b[2m\
 Using this shell, you can carry out the installation process \"manually.\"
 Access documentation at any time by pressing Alt-F2.\x1b[0m
 "))
          (console-motd (plain-file "console-motd" "
-\x1b[1;37mWelcome to the installation of GNU Guix!\x1b[0m
+\x1b[1;37mWelcome to the installation of Brix OS!\x1b[0m
 
 You are in a headless console. If you can use a display, you should see the
 graphical installer on TTY1, it's opened by default. In case you cannot use a
@@ -613,7 +614,7 @@ or by starting the installer, using `guix-system-installer` command.
 (define %issue
   ;; Greeting.
   "
-\x1b[1;37mThis is an installation image of the GNU system.  Welcome.\x1b[0m
+\x1b[1;37mThis is an installation image of the Brix system.  Welcome.\x1b[0m
 
 \x1b[1;33mUse Alt-F2 for documentation.\x1b[0m
 ")
@@ -698,11 +699,12 @@ or by starting the installer, using `guix-system-installer` command.
                                ;; When #f, use hybrid grub that sets up
                                ;; both legacy boot and efi.
                                (efi-only? #f))
+
   ;; The operating system used on installation images for USB sticks etc.
   (operating-system
-    (host-name "gnu")
-    (timezone "Europe/Paris")
-    (locale "en_US.utf8")
+    (host-name "brix")
+    (timezone "Asia/Dhaka")
+    (locale "en_GB.utf8")
     (name-service-switch %mdns-host-lookup-nss)
 
     (initrd-modules (%installation-initrd-modules))
@@ -714,7 +716,7 @@ or by starting the installer, using `guix-system-installer` command.
                     (bootloader-configuration
                       (bootloader grub-bootloader)
                       (targets '("/dev/sda")))))
-    (label (string-append "GNU Guix installation " grub-displayed-version))
+    (label (string-append "Brix OS installation " grub-displayed-version))
 
     ;; XXX: The AMD Radeon driver is reportedly broken, which makes kmscon
     ;; non-functional:
@@ -739,7 +741,7 @@ or by starting the installer, using `guix-system-installer` command.
                    (group "users")
                    (supplementary-groups '("wheel")) ; allow use of sudo
                    (password "")
-                   (comment "Guest of GNU"))))
+                   (comment "Guest of Brix"))))
 
     (issue %issue)
     (services (%installation-services))

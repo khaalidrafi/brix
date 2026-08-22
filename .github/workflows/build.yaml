@@ -93,11 +93,6 @@ jobs:
           # ls -l $(which brix)
           # brix describe
 
-      - name: Configure Guix channel
-        run: |
-          mkdir -p ~/.config/guix
-          cp .github/workflows/channels.scm ~/.config/guix/
-
       # - name: Check if pull is needed
       #   id: check-pull
       #   run: |

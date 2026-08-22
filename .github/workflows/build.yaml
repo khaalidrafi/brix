@@ -214,7 +214,7 @@ jobs:
           ls -l $GUIX_PROFILE
           echo "---------------- Exporting current profile from $STORE_PATH -----------------"
           echo "store_path=$STORE_PATH" >> $GITHUB_ENV
-          STORE_HASH=$(basename "$STORE_PATH")
+          STORE_HASH=$(basename "$STORE_PATH" | cut -d'-' -f1)
           echo "store_hash=$STORE_HASH" >> $GITHUB_ENV
           guix archive --export -r "$STORE_PATH"  > "brix-testing-current-profile-${STORE_HASH}.nar"
           cp /etc/guix/signing-key.pub brix-testing-current-profile.pub

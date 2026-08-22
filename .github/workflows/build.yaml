@@ -47,6 +47,7 @@ jobs:
           set -euo pipefail
 
           # Find where Brix diverged from upstream Guix
+          git remote add upstream https://codeberg.org/guix/guix.git
           git fetch upstream master
 
           FIRST_BRIX_COMMIT=$(git rev-list --reverse upstream/master..HEAD | head -n 1)
@@ -209,7 +210,9 @@ jobs:
           ls -l $GUIX_PROFILE
           echo "---------------- Exporting current profile from $STORE_PATH -----------------"
           echo "store_path=$STORE_PATH" >> $GITHUB_ENV
-          guix archive --export -r "$STORE_PATH"  > brix-testing-current-profile.nar
+          $STORE_HASH=$(basename "$STORE_PATH")
+          echo "store_hash=$STORE_HASH" >> $GITHUB_ENV
+          guix archive --export -r "$STORE_PATH"  > "brix-testing-current-profile-${STORE_HASH}.nar"
           cp /etc/guix/signing-key.pub brix-testing-current-profile.pub
 
       # - name: Get short commit SHA
@@ -228,18 +231,18 @@ jobs:
             - **Commit:** `${{ github.sha }}` from ci-testing branch
             - **Store path:** `${{ env.store_path }}`
 
-            Download `brix-testing-current-profile.nar` and `brix-testing-current-profile.pub` to import
+            Download `brix-testing-current-profile-${{ env.store_hash }}.nar` and `brix-testing-current-profile.pub` to import
             this exact Brix revision on your machine without running `brix pull`:
 
             ```bash
             sudo brix archive --authorize < brix-testing-current-profile.pub
             sudo brix archive --import < brix-testing-current-profile.nar
-            ln -s ${{ env.STORE_PATH }} ~/.config/guix/current
+            ln -s ${{ env.store_path }} ~/.config/guix/current
             ```
             
           generate_release_notes: true
           files: |
-            brix-testing-current-profile.nar
+            brix-testing-current-profile-${{ env.store_hash }}.nar
             brix-testing-current-profile.pub
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

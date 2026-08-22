@@ -50,6 +50,9 @@ jobs:
           git remote add upstream https://codeberg.org/guix/guix.git
           git fetch upstream master
 
+          git rev-list --reverse upstream/master..HEAD | head -n 1
+          git rev-parse --abbrev-ref HEAD
+          
           FIRST_BRIX_COMMIT=$(git rev-list --reverse upstream/master..HEAD | head -n 1)
           BRANCH=$(git rev-parse --abbrev-ref HEAD)
 

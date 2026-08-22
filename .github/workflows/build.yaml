@@ -29,8 +29,8 @@ jobs:
       #   run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
 
  
-      - name: Install Upstream Guix
-        uses: PromyLOPh/guix-install-action@v1
+      - name: Install Brix
+        uses: brix-os/brix-action@v1
         with:
           pullAfterInstall: false
 
@@ -41,7 +41,44 @@ jobs:
 
       - name: Mark workspace as safe for git
         run: git config --global --add safe.directory $(pwd)
-      
+
+      - name: Configure channels.scm
+        run: |
+          set -euo pipefail
+
+          # Find where Brix diverged from upstream Guix
+          git fetch upstream master
+
+          FIRST_BRIX_COMMIT=$(git rev-list --reverse upstream/master..HEAD | head -n 1)
+          BRANCH=$(git rev-parse --abbrev-ref HEAD)
+
+          echo "First Brix commit: $FIRST_BRIX_COMMIT"
+          echo "PWD: $PWD"
+
+          mkdir -p ~/.config/guix
+          cat > ~/.config/guix/channels.scm <<EOF
+          (list
+           (channel
+             (name 'nonguix)
+             (url "https://gitlab.com/nonguix/nonguix")
+             (introduction
+              (make-channel-introduction
+               "897c1a470da759236cc11798f4e0a5f7d4d59fbc"
+               (openpgp-fingerprint
+                "2A39 3FFF 68F4 EF7A 3D29  12AF 6F51 20A0 22FB B2D5"))))
+           (channel
+             (name 'guix)
+             (url "file://${PWD}")
+             (branch "${BRANCH}")
+             (introduction
+              (make-channel-introduction
+               "${FIRST_BRIX_COMMIT}"
+               (openpgp-fingerprint
+                "B8E6 AB25 3C7B D049 F5DD  E18F 9BE2 DF28 6999 F740")))))
+          EOF
+
+          cat ~/.config/guix/channels.scm
+        
 
       - name: Test Guix
         run: |
@@ -112,13 +149,13 @@ jobs:
         run: |
           which guix
           guix describe
-          guix pull --url="file://$(pwd)" --commit=$(git rev-parse HEAD) --allow-downgrades --disable-authentication -M 6 -K --dry-run
+          guix pull --allow-downgrades --disable-authentication -M 6 -K --dry-run
           
       - name: Guix pull
         env:
           LC_ALL: C
         run: |
-          guix pull --url="file://$(pwd)" --commit=$(git rev-parse HEAD) --allow-downgrades --disable-authentication -M 6 -v 3 -K
+          guix pull --allow-downgrades --disable-authentication -M 6 -v 3 -K
           sudo systemctl restart guix-daemon
 
       - name: Test Pulled Brix

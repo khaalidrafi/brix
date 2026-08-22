@@ -30,7 +30,7 @@ jobs:
 
  
       - name: Install Brix
-        uses: PromyLOPh@guix-install-actionv1
+        uses: PromyLOPh/guix-install-action@v1
         with:
           pullAfterInstall: false
 
@@ -184,7 +184,7 @@ jobs:
           brix describe
           which guix
           guix describe
-          guix system image --image-type=docker --network --root=$home/brix-docker .github/workflows/docker-ci.scm -M 6 --dry-run
+          guix system image --image-type=docker --network --root=$HOME/brix-docker .github/workflows/docker-ci.scm -M 6 --dry-run
           
           
       - name: Generate Docker Image
@@ -214,43 +214,11 @@ jobs:
           ls -l $GUIX_PROFILE
           echo "---------------- Exporting current profile from $STORE_PATH -----------------"
           echo "store_path=$STORE_PATH" >> $GITHUB_ENV
-          $STORE_HASH=$(basename "$STORE_PATH")
+          STORE_HASH=$(basename "$STORE_PATH")
           echo "store_hash=$STORE_HASH" >> $GITHUB_ENV
           guix archive --export -r "$STORE_PATH"  > "brix-testing-current-profile-${STORE_HASH}.nar"
           cp /etc/guix/signing-key.pub brix-testing-current-profile.pub
 
-      # - name: Get short commit SHA
-      #   id: vars
-      #   run: |
-      #     SHORT_SHA=$(git rev-parse --short ${{ github.sha }})
-      #     echo "SHORT_SHA=$SHORT_SHA" >> $GITHUB_ENV
-
-      - name: Create GitHub Release with commit hash
-        # if: steps.check-pull.outputs.pull_needed == 'true'
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: testing
-          # name: "Brix CI ${{ env.SHORT_SHA }}"
-          body: |
-            - **Commit:** `${{ github.sha }}` from ci-testing branch
-            - **Store path:** `${{ env.store_path }}`
-
-            Download `brix-testing-current-profile-${{ env.store_hash }}.nar` and `brix-testing-current-profile.pub` to import
-            this exact Brix revision on your machine without running `brix pull`:
-
-            ```bash
-            sudo brix archive --authorize < brix-testing-current-profile.pub
-            sudo brix archive --import < brix-testing-current-profile.nar
-            ln -s ${{ env.store_path }} ~/.config/guix/current
-            ```
-            
-          generate_release_notes: true
-          files: |
-            brix-testing-current-profile-${{ env.store_hash }}.nar
-            brix-testing-current-profile.pub
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          
       - name: Pack pulled Guix binary
         # if: steps.check-pull.outputs.pull_needed == 'true'
         run: |
@@ -266,15 +234,41 @@ jobs:
             --expression='(use-modules (gnu packages package-management)) (current-guix)'
           cp -L brix-binary brix-binary-testing.x86_64-linux.tar.xz
 
-      - name: Release binary to GitHub
-        # if: steps.check-pull.outputs.pull_needed == 'true'
-        uses: softprops/action-gh-release@v3
-        with:
-          tag_name: testing
-          files: brix-binary-testing.x86_64-linux.tar.xz
+      - name: Release to GitHub
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          COMMIT_SHORT=$(git rev-parse --short HEAD)
+          COMMIT_FULL=$(git rev-parse HEAD)
+          STORE_PATH="${{ env.store_path }}"
+          STORE_HASH="${{ env.store_hash }}"
 
+          gh release delete testing --yes --cleanup-tag 
+
+          gh release create testing \
+            --target "$COMMIT_FULL" \
+            --title "Brix CI Testing" \
+            --notes "## Brix CI Testing Build
+
+          - **Commit:** [\`${COMMIT_SHORT}\`](https://github.com/brix-os/brix/commit/${COMMIT_FULL})
+          - **Store path:** \`${STORE_PATH}\`
+          - **Store hash:** \`${STORE_HASH}\`
+
+          ### Profile NAR (import without \`brix pull\`)
+          \`\`\`bash
+          sudo brix archive --authorize < brix-testing-current-profile.pub
+          brix archive --import < brix-testing-current-profile-${STORE_HASH}.nar
+          ln -s ${STORE_PATH} ~/.config/guix/current
+          \`\`\`
+
+          ### Binary pack (extract and run)
+          \`\`\`bash
+          tar -xf brix-binary-testing.x86_64-linux.tar.xz
+          \`\`\`" \
+            "brix-testing-current-profile-${STORE_HASH}.nar" \
+            "brix-testing-current-profile.pub" \
+            "brix-binary-testing.x86_64-linux.tar.xz"
+            
       - uses: actions/upload-artifact@v7
         with:
           name: brix-system-ci-base

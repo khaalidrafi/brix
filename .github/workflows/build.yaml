@@ -42,48 +42,53 @@ jobs:
       - name: Mark workspace as safe for git
         run: git config --global --add safe.directory $(pwd)
 
-      - name: Configure channels.scm
-        run: |
-          # Find where Brix diverged from upstream Guix
-          git remote add upstream https://codeberg.org/guix/guix.git
-          git fetch upstream master
+      # - name: Configure channels.scm
+      #   run: |
+      #     # Find where Brix diverged from upstream Guix
+      #     git remote add upstream https://codeberg.org/guix/guix.git
+      #     git fetch upstream master
 
-          echo "Getting first commit..."
-          git rev-list --reverse upstream/master..HEAD | head -n 1
+      #     echo "Getting first commit..."
+      #     git rev-list --reverse upstream/master..HEAD | head -n 1
 
-          echo "Getting branch name..."
-          git rev-parse --abbrev-ref HEAD
+      #     echo "Getting branch name..."
+      #     git rev-parse --abbrev-ref HEAD
           
-          FIRST_BRIX_COMMIT=$(git rev-list --reverse upstream/master..HEAD | head -n 1)
-          BRANCH=$(git rev-parse --abbrev-ref HEAD)
+      #     FIRST_BRIX_COMMIT=$(git rev-list --reverse upstream/master..HEAD | head -n 1)
+      #     BRANCH=$(git rev-parse --abbrev-ref HEAD)
 
-          echo "First Brix commit: $FIRST_BRIX_COMMIT"
-          # echo "PWD: $PWD"
+      #     echo "First Brix commit: $FIRST_BRIX_COMMIT"
+      #     # echo "PWD: $PWD"
 
+      #     mkdir -p ~/.config/guix
+      #     cat > ~/.config/guix/channels.scm <<EOF
+      #     (list
+      #      (channel
+      #        (name 'nonguix)
+      #        (url "https://gitlab.com/nonguix/nonguix")
+      #        (introduction
+      #         (make-channel-introduction
+      #          "897c1a470da759236cc11798f4e0a5f7d4d59fbc"
+      #          (openpgp-fingerprint
+      #           "2A39 3FFF 68F4 EF7A 3D29  12AF 6F51 20A0 22FB B2D5"))))
+      #      (channel
+      #        (name 'guix)
+      #        (url "https://github.com/brix-os/brix.git")
+      #        (branch "${BRANCH}")
+      #        (introduction
+      #         (make-channel-introduction
+      #          "${FIRST_BRIX_COMMIT}"
+      #          (openpgp-fingerprint
+      #           "B8E6 AB25 3C7B D049 F5DD  E18F 9BE2 DF28 6999 F740")))))
+      #     EOF
+
+      #     cat ~/.config/guix/channels.scm
+
+
+      - name: Copy channels.scm
+        run: |
           mkdir -p ~/.config/guix
-          cat > ~/.config/guix/channels.scm <<EOF
-          (list
-           (channel
-             (name 'nonguix)
-             (url "https://gitlab.com/nonguix/nonguix")
-             (introduction
-              (make-channel-introduction
-               "897c1a470da759236cc11798f4e0a5f7d4d59fbc"
-               (openpgp-fingerprint
-                "2A39 3FFF 68F4 EF7A 3D29  12AF 6F51 20A0 22FB B2D5"))))
-           (channel
-             (name 'guix)
-             (url "https://github.com/brix-os/brix.git")
-             (branch "${BRANCH}")
-             (introduction
-              (make-channel-introduction
-               "${FIRST_BRIX_COMMIT}"
-               (openpgp-fingerprint
-                "B8E6 AB25 3C7B D049 F5DD  E18F 9BE2 DF28 6999 F740")))))
-          EOF
-
-          cat ~/.config/guix/channels.scm
-
+          cp .github/workflows/channels.scm
 
       - name: Test Guix
         run: |
@@ -149,7 +154,7 @@ jobs:
         run: |
           which guix
           guix describe
-          guix pull --branch=ci-testing --allow-downgrades --disable-authentication -M 6 -K --dry-run
+          # guix pull --branch=ci-testing --allow-downgrades --disable-authentication -M 6 -K --dry-run
           
       - name: Guix pull
         env:
@@ -179,7 +184,7 @@ jobs:
           brix describe
           which guix
           guix describe
-          guix system image --image-type=docker --network --root=$HOME/brix-docker .github/workflows/docker-ci.scm -M 6 --dry-run
+          # guix system image --image-type=docker --network --root=$HOME/brix-docker .github/workflows/docker-ci.scm -M 6 --dry-run
           
           
       - name: Generate Docker Image
@@ -238,7 +243,7 @@ jobs:
           STORE_PATH="${{ env.store_path }}"
           STORE_HASH="${{ env.store_hash }}"
 
-          gh release delete testing --yes --cleanup-tag 
+          gh release delete testing --yes --cleanup-tag 2>/dev/null || echo "Couldn't delete release: testing. Does it exist?"
 
           gh release create testing \
             --target "$COMMIT_FULL" \

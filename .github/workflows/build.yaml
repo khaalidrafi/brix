@@ -30,7 +30,7 @@ jobs:
 
  
       - name: Install Brix
-        uses: brix-os/brix-action@v1
+        uses: PromyLOPh@guix-install-actionv1
         with:
           pullAfterInstall: false
 
@@ -44,13 +44,14 @@ jobs:
 
       - name: Configure channels.scm
         run: |
-          set -euo pipefail
-
           # Find where Brix diverged from upstream Guix
           git remote add upstream https://codeberg.org/guix/guix.git
           git fetch upstream master
 
+          echo "Getting first commit..."
           git rev-list --reverse upstream/master..HEAD | head -n 1
+
+          echo "Getting branch name..."
           git rev-parse --abbrev-ref HEAD
           
           FIRST_BRIX_COMMIT=$(git rev-list --reverse upstream/master..HEAD | head -n 1)
@@ -358,12 +359,12 @@ jobs:
           docker push ghcr.io/brix-os/brix-ci:testing
       ########## CI Image ################    
       
-      - name: Debug SSH on failure
-        if: failure()
-        uses: mxschmitt/action-tmate@v3
-        timeout-minutes: 30
-        with:
-          limit-access-to-actor: true
+      # - name: Debug SSH on failure
+      #   if: failure()
+      #   uses: mxschmitt/action-tmate@v3
+      #   timeout-minutes: 30
+      #   with:
+      #     limit-access-to-actor: true
 
 
       # - name: Login to Docker Hub

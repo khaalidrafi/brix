@@ -1,8 +1,8 @@
 name: Brix CI — Pull then Pack
 
 on:
-#  push:
- #   branches: [ci-testing]
+  push:
+    branches: [ci-testing]
   #   tags:
   #     - 'v*.*.*'
   workflow_dispatch:
@@ -175,6 +175,51 @@ jobs:
           brix describe
 
      
+      ########## CI Image ################    
+      - name: Generate Docker base for CI
+        run: |
+          if [ -d "$HOME/.config/guix/current" ]; then
+            GUIX_PROFILE="$HOME/.config/guix/current"
+            . "$GUIX_PROFILE/etc/profile"
+          # else
+          #   GUIX_PROFILE="/var/guix/profiles/per-user/root/current-guix"
+          fi
+          guix pack \
+          -e '(@ (gnu packages base) glibc-for-fhs)' gcc-toolchain \
+          -e '(use-modules (gnu packages package-management)) (current-guix)' \
+          bash-minimal coreutils-minimal net-base nss-certs \
+          gawk grep git-minimal github-cli procps tar which shadow wget \
+          findutils diffutils make automake autoconf tar grep sed m4 gzip xz bzip2 iproute2 inetutils libcap lndir \
+          --save-provenance \
+          -S /bin=bin \
+          -S /share=share \
+          -S /lib=lib \
+          -S /usr/include=include \
+          -S /sbin=sbin \
+          -S /usr/libexec=libexec \
+          -S /usr/share=share \
+          -f docker \
+          --image-tag=brix-ci-base \
+          --max-layers=8 \
+          --root=brix-ci
+          cp -L brix-ci brix-ci-base.tar.gz
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: brix-ci-base
+          path: brix-ci-base.tar.gz
+          archive: false
+
+      - name: Build and push CI image
+        run: |
+          docker load < brix-ci-base.tar.gz
+          docker build \
+            -t ghcr.io/brix-os/brix-ci:testing \
+            -f .github/workflows/Dockerfile \
+            .github/workflows/
+          docker push ghcr.io/brix-os/brix-ci:testing
+      ########## CI Image ################    
+      
       - name: Test before building Docker
         run: |
           GUIX_PROFILE="$HOME/.config/guix/current"
@@ -308,51 +353,6 @@ jobs:
         run: docker logs container
           
           
-      ########## CI Image ################    
-      - name: Generate Docker base for CI
-        run: |
-          if [ -d "$HOME/.config/guix/current" ]; then
-            GUIX_PROFILE="$HOME/.config/guix/current"
-            . "$GUIX_PROFILE/etc/profile"
-          # else
-          #   GUIX_PROFILE="/var/guix/profiles/per-user/root/current-guix"
-          fi
-          guix pack \
-          -e '(@ (gnu packages base) glibc-for-fhs)' gcc-toolchain \
-          -e '(use-modules (gnu packages package-management)) (current-guix)' \
-          bash-minimal coreutils-minimal net-base nss-certs \
-          gawk grep git-minimal github-cli procps tar which shadow wget \
-          findutils diffutils make automake autoconf tar grep sed m4 gzip xz bzip2 iproute2 inetutils libcap lndir \
-          --save-provenance \
-          -S /bin=bin \
-          -S /share=share \
-          -S /lib=lib \
-          -S /usr/include=include \
-          -S /sbin=sbin \
-          -S /usr/libexec=libexec \
-          -S /usr/share=share \
-          -f docker \
-          --image-tag=brix-ci-base \
-          --max-layers=8 \
-          --root=brix-ci
-          cp -L brix-ci brix-ci-base.tar.gz
-
-      - uses: actions/upload-artifact@v7
-        with:
-          name: brix-ci-base
-          path: brix-ci-base.tar.gz
-          archive: false
-
-      - name: Build and push CI image
-        run: |
-          docker load < brix-ci-base.tar.gz
-          docker build \
-            -t ghcr.io/brix-os/brix-ci:testing \
-            -f .github/workflows/Dockerfile \
-            .github/workflows/
-          docker push ghcr.io/brix-os/brix-ci:testing
-      ########## CI Image ################    
-      
       # - name: Debug SSH on failure
       #   if: failure()
       #   uses: mxschmitt/action-tmate@v3

@@ -1,7 +1,7 @@
 name: Test upstream Guix
 
 on:
-   push:
+  push:
     branches: [ci-testing]
   #   tags:
   #     - 'v*.*.*'

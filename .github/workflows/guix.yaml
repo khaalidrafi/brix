@@ -87,7 +87,7 @@ jobs:
         run: |
           set -e
           
-          docker load < guix-docker-testing.tar.gz
+          docker load < guix-docker.tar.gz
           docker run -d --name container --privileged guix:latest
           sleep 20
 

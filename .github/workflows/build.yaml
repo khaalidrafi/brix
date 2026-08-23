@@ -211,6 +211,13 @@ jobs:
           archive: false
 
       - name: Build and push CI image
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      
         run: |
           docker load < brix-ci-base.tar.gz
           docker build \
@@ -320,13 +327,6 @@ jobs:
           path: brix-docker-testing.tar.gz
           archive: false
 
-      - name: Login to GitHub Container Registry
-        uses: docker/login-action@v4
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-      
       - name: Build Docker system image for CI
         run: |
           set -e

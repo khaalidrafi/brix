@@ -66,9 +66,14 @@ jobs:
          which guix
          guix describe
          echo "--------------Starting Docker Build-----------------------"
-         guix system image --image-type=docker --network --root=guix-docker .github/workflows/docker-ci.scm -M 6 -v 2
+         guix system image --image-type=docker --network --root=guix-docker .github/workflows/docker-ci.scm -M 6 -v 3
          cp -L guix-docker guix-docker.tar.gz
 
+      - uses: actions/upload-artifact@v7
+        with:
+          name: upstream-guix-docker
+          path: guix-docker.tar.gz
+          archive: false
 
       - name: Login to GitHub Container Registry
         uses: docker/login-action@v4
@@ -158,12 +163,6 @@ jobs:
       #     name: upstream-guix-binary
       #     path: guix-binary-testing.x86_64-linux.tar.xz
       #     archive: false
-
-      - uses: actions/upload-artifact@v7
-        with:
-          name: upstream-guix-docker
-          path: guix-docker.tar.gz
-          archive: false
 
       - name: Debug SSH on failure
         if: failure()

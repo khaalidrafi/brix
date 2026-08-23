@@ -1,8 +1,8 @@
 name: Brix CI — Pull then Pack
 
 on:
-  push:
-    branches: [ci-testing]
+#  push:
+ #   branches: [ci-testing]
   #   tags:
   #     - 'v*.*.*'
   workflow_dispatch:
@@ -258,7 +258,7 @@ jobs:
           \`\`\`bash
           sudo brix archive --authorize < brix-testing-current-profile.pub
           brix archive --import < brix-testing-current-profile-${STORE_HASH}.nar
-          ln -s ${STORE_PATH} ~/.config/guix/current
+          ln -sfn ${STORE_PATH} ~/.config/guix/current
           \`\`\`
 
           ### Binary pack (extract and run)
